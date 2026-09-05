@@ -30,6 +30,8 @@ The [local ingress capacity baseline](2026-09-05-capacity.md) subsequently passe
 
 The workflow opened [dev digest PR #1](https://github.com/skhitrov/k8s-platform-lab/pull/1). It was deliberately not approved or merged during implementation. A later release can update that PR's digest; compare its current source identity against its own successful Release. GitOps adoption and staging promotion remain gated by actual human review, not inferred authorization.
 
+Live main-branch protection was subsequently verified: `verify` is required from the GitHub Actions app, the branch must be up to date, one approving review and resolved conversations are required, and admin bypass/force pushes/deletion are disabled. Hosted Ubuntu's older ShellCheck then flagged the tested EXIT-trap cleanup with SC2317, whereas the Mac's newer version uses SC2329. A function-scoped annotation documents both false-positive codes; this compatibility fix is included in PR #1, not pushed around the protection gate. Verification-job execution was approved where GitHub required it; the PR itself was not approved or merged.
+
 ## K3s and live add-ons
 
 K3s `v1.36.3+k3s1` was bootstrapped in its own 4-vCPU/8-GiB profile after stopping Kind. Taskflow built and deployed using the local helper. K3s policy probes passed the same DNS/allowed-DB/denied-DB/ingress checks as Kind. A lab Certificate became Ready and HTTPS readiness returned `{"status":"ready"}` through `https://taskflow.localhost`, with the public lab CA explicitly validated, not `curl -k`.
