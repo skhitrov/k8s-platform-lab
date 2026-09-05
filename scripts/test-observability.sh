@@ -11,7 +11,8 @@ case "${namespace}" in taskflow-dev|taskflow-staging) ;; *) exit 2 ;; esac
 report_directory="$(mktemp -d)"
 forward_pids=()
 # Invoked by the EXIT trap, including successful early exit after convergence.
-# shellcheck disable=SC2329
+# ShellCheck 0.9 reports SC2317 here; 0.11 reports SC2329. Both miss the trap call.
+# shellcheck disable=SC2317,SC2329
 cleanup() {
   for pid in "${forward_pids[@]}"; do kill "${pid}" 2>/dev/null || true; done
   for pid in "${forward_pids[@]}"; do wait "${pid}" 2>/dev/null || true; done
