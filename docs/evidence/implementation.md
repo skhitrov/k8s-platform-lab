@@ -18,4 +18,6 @@ Defects caught during implementation: unsafe secret rotation on bootstrap, destr
 
 The public repository `https://github.com/skhitrov/k8s-platform-lab` was created under the authenticated user account. Commit authorship uses the GitHub no-reply address; no private email is needed. Hosted CI/publication results are recorded after their runs, not inferred from local success.
 
+[Initial hosted CI](https://github.com/skhitrov/k8s-platform-lab/actions/runs/33982739433) passed all gates for `e00fa001d6b0d323a2df90514321aa822d549b1d`, including Linux image build/scan, negative fixtures and Kubernetes backup/restore. The first Release workflow skipped publication because `rg` was absent from its separate runner; its green overall status was **not** treated as artifact success. Release change detection was corrected to use Git/Bash only, compare against the deployed source SHA, and fail on command errors; registry publication is verified separately.
+
 Still requires runtime evidence: full GitOps reconciliation and promotion, complete telemetry correlation, TLS/sealing recovery, real canary abort, 50/s ten-minute capacity acceptance, worker-failure availability boundaries and timed clean-cluster recovery. Do not infer any of these from rendered YAML alone.

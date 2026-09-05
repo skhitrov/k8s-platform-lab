@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: release-main
   cancel-in-progress: false
@@ -33,13 +37,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
+      - name: Install locked yq for the last deployed source identity
+        run: bash scripts/install-ci-tools.sh yq
       - name: Avoid rebuilding for digest-only or documentation merges
         id: changes
         run: |
-          if git diff-tree --no-commit-id --name-only -r --root HEAD -- app go.mod go.sum Dockerfile .dockerignore .github/workflows/release.yml | rg -q .; then
+          deployed_commit="$(yq -r '.image.tag' deploy/chart/taskflow/values-dev.yaml)"
+          if ! [[ "$deployed_commit" =~ ^[a-f0-9]{40}$ ]]; then
             echo 'build=true' >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "$deployed_commit^{commit}"; then
+            echo 'The deployed source commit is missing from repository history.' >&2
+            exit 1
+          else
+            changed_inputs="$(git diff --name-only "$deployed_commit" HEAD -- app go.mod go.sum Dockerfile .dockerignore .github/workflows/release.yml)"
+            if [ -n "$changed_inputs" ]; then
+              echo 'build=true' >> "$GITHUB_OUTPUT"
+            fi
           fi
       - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
         if: steps.changes.outputs.build == 'true'
@@ -83,8 +98,8 @@ jobs:
         run: |
           gh attestation verify "oci://ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --repo skhitrov/k8s-platform-lab
           docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --raw | jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | (index("amd64") != null and index("arm64") != null)'
-          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .SBOM}}' | jq -e 'type == "object" and length > 0'
-          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .Provenance}}' | jq -e 'type == "object" and length > 0'
+          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .SBOM}}' | jq -e '. as $data | ["linux/amd64", "linux/arm64"] | all(.[]; . as $platform | $data[$platform].SPDX | .spdxVersion != null and (.packages | length) > 0)'
+          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .Provenance}}' | jq -e '. as $data | ["linux/amd64", "linux/arm64"] | all(.[]; . as $platform | $data[$platform].SLSA | type == "object" and length > 0)'
 
   dev-pr:
     needs: publish

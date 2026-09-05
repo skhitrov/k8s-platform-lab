@@ -24,6 +24,8 @@ make bootstrap-gitops CONTEXT=kind-sre-lab
 kubectl --context kind-sre-lab --namespace argocd get applications
 ```
 
+Before GitOps, install individual Week 3/6/9 add-ons with `bash scripts/install-addon.sh kind-sre-lab cert-manager` (or `sealed-secrets`, `argo-rollouts`, `kube-prometheus-stack`, `loki`, `tempo`, `alloy`, `opentelemetry-collector`). The helper uses the same locked archives/values as Argo and refuses to overwrite an existing Argo-owned Application. Install controllers before their custom resources; install telemetry backends before collectors. After the required CRDs exist, apply `platform/config` to provision namespaces, TLS issuers, dashboard and alert rules. Do not run that manual path once GitOps owns it.
+
 Timed rebuild: start a timer before bootstrap, restore external secrets/sealing material as needed, wait for all child Applications to be Healthy/Synced, test TLS, submit a job and verify completion, exercise a denied network request, and stop the timer. Record failures and timings in the weekly template; the target is under 45 minutes, not a claimed result.
 
 To pause without removing disks or clusters:

@@ -6,7 +6,7 @@ Use the public `skhitrov/k8s-platform-lab` repository and public GHCR package `g
 
 After initial CI succeeds, `bash scripts/configure-github.sh` enables Actions/PR creation, enforces action SHA pins, and protects `main` with required `verify` checks, up-to-date branches, resolved conversations and one approving review. Admin bypass, deletion and force pushes are disabled. Workflow permissions remain explicitly scoped in YAML. CODEOWNERS assigns platform and delivery changes to `skhitrov` but a code-owner-only approval is not required: a solo author cannot approve their own PR, so use a mentor/reviewer instead of silently weakening the rule. Dependabot changes to action SHAs must also update `.github/action-pins.json`.
 
-Never attach a self-hosted runner to this public repository. The CI job uses only GitHub-hosted `ubuntu-24.04`, and release accepts only a successful **push-to-main** CI run from this repository. It checks out the exact tested SHA. Release skips docs/values-only commits to prevent an image-update loop.
+Never attach a self-hosted runner to this public repository. The CI job uses only GitHub-hosted `ubuntu-24.04`, and release accepts only a successful **push-to-main** CI run from this repository. It checks out the exact tested SHA. Release compares build inputs with the source SHA currently recorded in dev, so a cancelled intermediate CI run cannot hide an unpublished code change. When those inputs are unchanged, docs/values-only commits skip the image build and cannot create an update loop.
 
 ## First release and adoption
 
