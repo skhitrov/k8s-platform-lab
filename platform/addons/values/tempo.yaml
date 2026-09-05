@@ -4,11 +4,34 @@ tempo:
   reportingEnabled: false
   retention: 6h
   resources:
-    requests: {cpu: 75m, memory: 128Mi}
-    limits: {cpu: 500m, memory: 384Mi}
+    requests: {cpu: 75m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 768Mi}
   extraEnv:
     - name: GOMEMLIMIT
-      value: 300MiB
+      value: 500MiB
+  # Startup alone missed an OOM at the first block completion. Keep the
+  # monolithic instance's write buffers and query fan-out laptop-sized.
+  ingester:
+    concurrent_flushes: 1
+    max_block_bytes: 8388608
+    max_block_duration: 2m
+  querier:
+    max_concurrent_queries: 2
+  queryFrontend:
+    search:
+      concurrent_jobs: 2
+    metrics:
+      concurrent_jobs: 2
+  storage:
+    trace:
+      block:
+        parquet_row_group_size_bytes: 4194304
+      search:
+        read_buffer_count: 2
+        read_buffer_size_bytes: 1048576
+      pool:
+        max_workers: 4
+        queue_depth: 100
   receivers:
     jaeger:
       protocols:

@@ -42,7 +42,9 @@ jobs:
         run: make test-validators
       - name: PostgreSQL concurrency, leases, and interruption tests
         run: make test-integration
-      - name: Kubernetes smoke and backup/restore
+      - name: Tempo block flush, restart, and non-empty WAL crash recovery
+        run: bash scripts/test-tempo-memory.sh
+      - name: Kubernetes smoke, backup/restore, and StatefulSet recovery
         run: make e2e
       - name: Scan the tested runtime image
         run: trivy image --scanners vuln --exit-code 1 --severity HIGH,CRITICAL taskflow:dev

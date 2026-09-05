@@ -28,6 +28,10 @@ Use the locally forwarded Argo UI; obtain its bootstrap admin credential private
 
 If adopting a namespace previously deployed with local Helm values, inspect existing objects/PVCs first. Take a backup. Argo renders the same release name `taskflow`; it becomes the desired-state owner. Do not continue Helm upgrades in that namespace once GitOps is active.
 
+The first client-side adoption can retain pre-existing fields that are absent from Git and absent from Argo's last-applied configuration. In the observed K3s adoption, the ingress's previous TLS block and cert-manager annotation survived although dev Git values still disable TLS. A `Synced` status does not make those fields Git-declared. Deliberately declare or remove them through a reviewed change before treating TLS as reproducible from dev values alone.
+
+The bootstrap limits repo-server manifest-generation parallelism to one, sets a 768Mi container limit and a 500MiB Go memory target. The original generic 256Mi limit OOM-killed it on concurrent cold chart rendering. Argo's bootstrap control plane is applied by the bootstrap script, not by the root Application; pull reviewed bootstrap changes and rerun the script to make those changes durable on other labs.
+
 ## Normal promotion
 
 Trigger “Promote to staging” on `main` and supply a committed evidence path or URL identifying the dev digest. The workflow opens a PR; it does not deploy directly, approve itself or rebuild an image. The human reviewer checks that the evidence and PR digest agree. Merging changes staging's desired state; Argo Rollouts controls traffic and candidate analysis.
