@@ -24,3 +24,25 @@ patches:
         value:
           requests: {cpu: 100m, memory: 256Mi}
           limits: {cpu: "1", memory: 512Mi}
+  - target:
+      kind: Deployment
+      name: argocd-repo-server
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: {cpu: 50m, memory: 192Mi}
+          limits: {cpu: "1", memory: 768Mi}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: GOMEMLIMIT
+          value: 500MiB
+  - target:
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
+    patch: |-
+      - op: add
+        path: /data
+        value:
+          reposerver.parallelism.limit: "1"

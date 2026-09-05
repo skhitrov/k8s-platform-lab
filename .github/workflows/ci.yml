@@ -42,6 +42,8 @@ jobs:
         run: make test-validators
       - name: PostgreSQL concurrency, leases, and interruption tests
         run: make test-integration
+      - name: Tempo memory-limited block flush and restart
+        run: bash scripts/test-tempo-memory.sh
       - name: Kubernetes smoke and backup/restore
         run: make e2e
       - name: Scan the tested runtime image

@@ -20,6 +20,16 @@ It submits one job, verifies API and worker scrape targets, finds both component
 
 Grafana's two Python sidecars have 192Mi limits after 64Mi caused observed startup OOM kills. Grafana itself has a 512Mi limit and 400MiB Go memory target after its measured working set reached 255Mi. Suggested plugin preinstallation and update checks are disabled to avoid unpinned background downloads; see [Grafana configuration](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#preinstall_disabled). Alertmanager's inherited child routes are explicitly cleared when defining the lab receiver.
 
+Tempo's original 384Mi limit passed readiness and a small trace query, then OOM-killed it during the first delayed block completion. The hardened values use a 768Mi limit/500MiB Go target, one flush worker, 8Mi blocks, 4Mi Parquet row groups and limited query/read concurrency. These are lab settings, not production sizing. Their field names and original defaults were checked against the pinned [Tempo 2.9 ingester](https://github.com/grafana/tempo/blob/v2.9.0/modules/ingester/config.go), [block configuration](https://github.com/grafana/tempo/blob/v2.9.0/tempodb/encoding/common/config.go) and [configuration reference](https://github.com/grafana/tempo/blob/v2.9.0/docs/sources/tempo/configuration/_index.md).
+
+```bash
+bash scripts/test-tempo-memory.sh colima-k3s-lab
+```
+
+This regression test runs the chart's image/configuration in a disposable container capped at the configured CPU/memory limit. It submits two batches of 5,000 synthetic traces, forces both blocks to complete/flush, restarts Tempo and retrieves a persisted trace. It records cgroup memory counters in `.cache/reports/tempo-memory/`; hosted CI runs it too. Ports 19418 and 19420 must be free. Its synthetic container data is removed on exit; no lab PVC is mounted. This is not a prolonged load test or proof that an existing damaged WAL can be recovered.
+
+For a live OOM, retain previous-container logs, restart counts and the PVC. Do not erase the trace volume to make readiness green. Under GitOps, propose memory/configuration changes through a reviewed PR and then recheck block completion, trace lookup and end-to-end correlation after Argo applies them.
+
 ## Request-to-root-cause exercise
 
 1. Send a valid job request with a unique `X-Request-ID`, save the response headers/job ID and wait for completion.
