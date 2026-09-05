@@ -52,17 +52,27 @@ alertmanager:
       group_wait: 10s
       group_interval: 1m
       repeat_interval: 1h
+      routes: []
     # Alerts remain visible locally. Configure a receiver only when practising delivery.
     receivers:
       - name: local-lab
 grafana:
+  grafana.ini:
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+      check_for_plugin_updates: false
+    plugins:
+      preinstall_disabled: true
   admin:
     existingSecret: taskflow-grafana-admin
   persistence:
     enabled: false
   resources:
-    requests: {cpu: 50m, memory: 128Mi}
-    limits: {cpu: 500m, memory: 256Mi}
+    requests: {cpu: 50m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  env:
+    GOMEMLIMIT: 400MiB
   sidecar:
     dashboards:
       searchNamespace: observability
@@ -71,8 +81,8 @@ grafana:
         datasourceUid: tempo
         traceIdLabelName: trace_id
     resources:
-      requests: {cpu: 10m, memory: 32Mi}
-      limits: {cpu: 100m, memory: 64Mi}
+      requests: {cpu: 10m, memory: 64Mi}
+      limits: {cpu: 100m, memory: 192Mi}
   additionalDataSources:
     - name: Loki
       uid: loki

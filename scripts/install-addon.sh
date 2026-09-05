@@ -27,8 +27,18 @@ fi
 if [ "${namespace}" = observability ]; then
   bash scripts/create-platform-secrets.sh "${kube_context}"
 fi
+if [ "${chart}" = alloy ]; then
+  # Namespace-scoped event Roles also cover Argo before Week 8 installs it.
+  kubectl --context "${kube_context}" create namespace argocd --dry-run=client -o yaml \
+    | kubectl --context "${kube_context}" apply -f -
+fi
 archive="$(bash scripts/fetch-chart.sh "${chart}")"
 helm upgrade --install "${chart}" "${archive}" --kube-context "${kube_context}" \
   --namespace "${namespace}" --create-namespace \
   --values "platform/addons/values/${chart}.yaml" --wait --wait-for-jobs --timeout 8m
+if [ "${chart}" = kube-prometheus-stack ]; then
+  # Helm cannot infer health of the workloads reconciled from these CRs.
+  kubectl --context "${kube_context}" --namespace observability wait --for=condition=Available \
+    prometheus/kube-prometheus-stack-prometheus alertmanager/kube-prometheus-stack-alertmanager --timeout=3m
+fi
 echo "Installed ${chart} for pre-GitOps practice. Once Argo owns it, change Git only."
