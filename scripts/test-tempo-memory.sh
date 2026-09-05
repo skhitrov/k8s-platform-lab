@@ -65,13 +65,40 @@ wait_ready() {
 }
 wait_ready
 
-for batch in 1 2; do
+assert_memory() {
+  local phase="$1"
+  "${docker_command[@]}" exec "${probe_id}" cat /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak \
+    | tee ".cache/reports/tempo-memory/${phase}-memory.txt"
+  awk '$1 == "oom_kill" {seen=1}
+    ($1 == "oom" || $1 == "oom_kill" || $1 == "oom_group_kill") && $2 != 0 {bad=1}
+    END {exit !seen || bad}' ".cache/reports/tempo-memory/${phase}-memory.txt"
+}
+flush_count() {
+  curl -fsS --max-time 5 http://127.0.0.1:19420/metrics \
+    | awk '$1 == "tempo_ingester_blocks_flushed_total" {value=$2; found=1} END {if (!found) exit 1; print value}'
+}
+wait_flushed() {
+  local expected="$1"
+  for _attempt in $(seq 1 90); do
+    if awk -v actual="$(flush_count)" -v expected="${expected}" 'BEGIN {exit actual < expected}'; then return 0; fi
+    sleep 1
+  done
+  echo "Tempo did not reach ${expected} completed block flushes." >&2; return 1
+}
+assert_trace() {
+  local trace_id="$1" span_name="$2"
+  curl -fsS --max-time 30 --header 'Accept: application/json' \
+    "http://127.0.0.1:19420/api/traces/${trace_id}" >"${probe_directory}/trace.json"
+  jq -e --arg name "${span_name}" 'any(.. | objects; .name? == $name)' "${probe_directory}/trace.json" >/dev/null
+}
+ingest_batch() {
+  local batch="$1" span_name="$2" timestamp_seconds
   timestamp_seconds="$(date +%s)"
-  jq -n --arg timestamp "${timestamp_seconds}000000000" --argjson batch "${batch}" '
+  jq -n --arg timestamp "${timestamp_seconds}000000000" --argjson batch "${batch}" --arg name "${span_name}" '
     {resourceSpans: [{resource: {attributes: [{key: "service.name", value: {stringValue: "tempo-memory-probe"}}]},
       scopeSpans: [{scope: {name: "taskflow-probe"}, spans: [range(0; 5000) as $i |
         {traceId: (("00000000000000000000000000000000" + (($batch * 10000 + $i) | tostring))[-32:]),
-         spanId: "0000000000000001", name: "block-completion-probe", kind: 2,
+         spanId: "0000000000000001", name: $name, kind: 2,
          startTimeUnixNano: $timestamp, endTimeUnixNano: $timestamp,
          attributes: [{key: "probe.payload", value: {stringValue: ("x" * 1024)}}]}
       ]}]}]}' \
@@ -81,27 +108,70 @@ for batch in 1 2; do
     >"${probe_directory}/ingest-response.json"
   jq -e '(.partialSuccess.rejectedSpans // "0" | tonumber) == 0' \
     "${probe_directory}/ingest-response.json" >/dev/null
+}
+for batch in 1 2; do
+  previous_flushes="$(flush_count)"
+  ingest_batch "${batch}" block-completion-probe
   curl -fsS --max-time 30 --request POST http://127.0.0.1:19420/flush >/dev/null
-  completed=false
-  for _attempt in $(seq 1 90); do
-    curl -fsS --max-time 5 http://127.0.0.1:19420/metrics >"${probe_directory}/metrics.txt"
-    if awk -v expected="${batch}" '$1 == "tempo_ingester_blocks_flushed_total" && $2 >= expected {ok=1} END {exit !ok}' \
-      "${probe_directory}/metrics.txt"; then completed=true; break; fi
-    sleep 1
-  done
-  if [ "${completed}" != true ]; then echo "Tempo did not flush batch ${batch}." >&2; exit 1; fi
-  "${docker_command[@]}" exec "${probe_id}" cat /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak \
-    | tee ".cache/reports/tempo-memory/batch-${batch}-memory.txt"
+  wait_flushed "$((previous_flushes + 1))"
+  assert_memory "batch-${batch}"
   echo "Tempo completed and flushed batch ${batch}: 5,000 synthetic traces."
 done
 
 # A restart must recover/query persisted blocks, not merely pass a readiness probe.
 "${docker_command[@]}" restart --time 30 "${probe_id}" >/dev/null
 wait_ready
-curl -fsS --max-time 30 --header 'Accept: application/json' \
-  http://127.0.0.1:19420/api/traces/00000000000000000000000000010000 \
-  >"${probe_directory}/trace.json"
-jq -e 'any(.. | objects; .name? == "block-completion-probe")' "${probe_directory}/trace.json" >/dev/null
-"${docker_command[@]}" exec "${probe_id}" cat /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory.peak \
-  | tee .cache/reports/tempo-memory/restart-memory.txt
-echo "Tempo memory probe passed: two block flushes and a persisted trace query after restart; limit ${memory_mib}Mi."
+assert_trace 00000000000000000000000000010000 block-completion-probe
+assert_trace 00000000000000000000000000024999 block-completion-probe
+assert_memory restart
+
+# A separate batch must exist only in an unfinished, non-empty WAL at the crash.
+# Wait for Tempo's normal idle-trace sweep; do NOT call /flush for this batch.
+previous_flushes="$(flush_count)"
+ingest_batch 3 wal-replay-probe
+wal_block_id=""
+for _attempt in $(seq 1 60); do
+  "${docker_command[@]}" exec "${probe_id}" find /tmp/tempo/wal -mindepth 2 -maxdepth 2 \
+    -type f -name meta.json -exec cat '{}' ';' >"${probe_directory}/wal-metadata.json"
+  # The metadata file can briefly be incomplete while the WAL writer updates it.
+  if jq -s -e '[.[] | select(.tenantID == "single-tenant" and .totalObjects == 5000)]
+    | if length == 1 then .[0] else error("non-empty WAL not ready") end' \
+    "${probe_directory}/wal-metadata.json" >"${probe_directory}/wal-block.json" 2>/dev/null; then
+    wal_block_id="$(jq -er '.blockID' "${probe_directory}/wal-block.json")"
+    break
+  fi
+  sleep 1
+done
+if ! [[ "${wal_block_id}" =~ ^[a-f0-9-]{36}$ ]]; then
+  echo "No unfinished WAL containing the 5,000-trace batch was observed." >&2; exit 1
+fi
+[ "$(flush_count)" = "${previous_flushes}" ]
+"${docker_command[@]}" exec "${probe_id}" test ! -e "/tmp/tempo/traces/single-tenant/${wal_block_id}/meta.json"
+assert_memory before-crash
+"${docker_command[@]}" kill --signal KILL "${probe_id}" >/dev/null
+"${docker_command[@]}" inspect --format '{{json .State}}' "${probe_id}" \
+  >.cache/reports/tempo-memory/crash-state.json
+jq -e '.ExitCode == 137 and .OOMKilled == false and .Running == false' \
+  .cache/reports/tempo-memory/crash-state.json >/dev/null
+
+# Inspect the stopped container: a valid populated WAL survived the hard kill.
+"${docker_command[@]}" cp \
+  "${probe_id}:/tmp/tempo/wal/${wal_block_id}+single-tenant+vParquet4" "${probe_directory}/crashed-wal"
+jq -e --arg id "${wal_block_id}" '.blockID == $id and .totalObjects == 5000' \
+  "${probe_directory}/crashed-wal/meta.json" >.cache/reports/tempo-memory/wal-metadata-valid.txt
+cp "${probe_directory}/crashed-wal/meta.json" .cache/reports/tempo-memory/wal-before-replay.json
+"${docker_command[@]}" start "${probe_id}" >/dev/null
+replay_started_at="$("${docker_command[@]}" inspect --format '{{.State.StartedAt}}' "${probe_id}")"
+wait_ready
+wait_flushed 1
+assert_trace 00000000000000000000000000030000 wal-replay-probe
+assert_trace 00000000000000000000000000034999 wal-replay-probe
+"${docker_command[@]}" logs --since "${replay_started_at}" "${probe_id}" \
+  >.cache/reports/tempo-memory/wal-replay.log 2>&1
+rg -q "beginning replay.*${wal_block_id}" .cache/reports/tempo-memory/wal-replay.log
+rg -q "block completed.*${wal_block_id}" .cache/reports/tempo-memory/wal-replay.log
+if rg 'failed to replay|POSSIBLE DATA LOSS' .cache/reports/tempo-memory/wal-replay.log | rg -q "${wal_block_id}"; then
+  echo "The populated WAL was dropped or failed replay." >&2; exit 1
+fi
+assert_memory wal-replay
+echo "Tempo memory probe passed: two flushed batches plus a 5,000-trace non-empty WAL survived SIGKILL/replay; limit ${memory_mib}Mi."

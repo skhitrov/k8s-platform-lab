@@ -112,3 +112,6 @@ kubectl --context "${kube_context}" --namespace "${namespace}" get pods -o json 
 kubectl --context "${kube_context}" --namespace "${namespace}" set image deployment/taskflow-taskflow-api "api=${image}"
 kubectl --context "${kube_context}" --namespace "${namespace}" rollout status deployment/taskflow-taskflow-api --timeout=2m
 echo "The unhealthy deployment was rejected and the tested image recovered."
+
+# Reproduce and recover an unready OrderedReady StatefulSet without deleting data.
+bash scripts/test-tempo-statefulset.sh "${kube_context}"
