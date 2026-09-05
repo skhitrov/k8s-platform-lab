@@ -28,7 +28,7 @@ config:
       send_batch_size: 256
   exporters:
     debug: null
-    otlp/tempo:
+    otlp_grpc/tempo:
       endpoint: tempo.observability.svc.cluster.local:4317
       tls:
         insecure: true
@@ -39,7 +39,7 @@ config:
       traces:
         receivers: [otlp]
         processors: [memory_limiter, batch]
-        exporters: [otlp/tempo]
+        exporters: [otlp_grpc/tempo]
 ports:
   otlp-http:
     enabled: false

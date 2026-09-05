@@ -11,7 +11,7 @@ namespace="taskflow-${environment}"
 kubectl --context "${kube_context}" --namespace "${namespace}" annotate secret taskflow-postgres \
   sealedsecrets.bitnami.com/managed=true sealedsecrets.bitnami.com/patch=true --overwrite
 ciphertext="$(kubectl --context "${kube_context}" --namespace "${namespace}" get secret taskflow-postgres -o json \
-  | kubeseal --context "${kube_context}" --controller-name sealed-secrets --controller-namespace kube-system --format json \
+  | kubeseal --context "${kube_context}" --controller-name sealed-secrets-controller --controller-namespace kube-system --format json \
   | jq -er '.spec.encryptedData.password')"
 TF_SEALED_PASSWORD="${ciphertext}" yq -i '.sealedSecret.encryptedPassword = strenv(TF_SEALED_PASSWORD)' \
   "deploy/chart/taskflow/values-${environment}.yaml"

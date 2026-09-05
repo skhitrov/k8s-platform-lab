@@ -14,6 +14,14 @@ bash scripts/seal-db-secret.sh kind-sre-lab dev
 
 The script marks only the existing database Secret for managed/patch adoption, seals it in memory, and writes only ciphertext into `sealedSecret.encryptedPassword` in dev values. Review the rendered name/namespace and merge. Do not insert `tee` before `kubeseal`. Never commit a sealing private key; export/backup it directly to an encrypted external store under a separately reviewed procedure.
 
+Verify the controller without touching the database credential:
+
+```bash
+bash scripts/test-sealed-secret.sh colima-k3s-lab
+```
+
+This uses a disposable namespace and public test value, then proves the controller recreates its deleted test Secret. Cleanup removes only that namespace. This is not a private-key backup/clean-cluster recovery test. Different K3s/Kind controllers have different sealing keys unless deliberately restored; ciphertext from one cannot automatically be decrypted by the other.
+
 Database password rotation is coordinated maintenance, **not** deleting the Secret and rerunning bootstrap: take a backup; securely generate/store a new password; change the PostgreSQL role password and matching Secret/sealed ciphertext; restart API and workers; verify readiness and a completed job; retain rollback material until verified. The cluster Secret, database role and Git ciphertext must agree. Avoid command-line password arguments, shell history and logged SQL literals.
 
 ## Lab TLS

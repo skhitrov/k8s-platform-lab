@@ -10,6 +10,16 @@ kubectl --context kind-sre-lab --namespace observability port-forward service/ku
 
 Run each port-forward in its own terminal. Retrieve the generated Grafana admin password privately from `taskflow-grafana-admin`; do not include it in evidence. Grafana configuration is provisioned from Git; UI edits are experiments, not the durable source.
 
+Once telemetry is enabled, close those port-forwards and run the automated correlation probe:
+
+```bash
+bash scripts/test-observability.sh colima-k3s-lab taskflow-dev
+```
+
+It submits one job, verifies API and worker scrape targets, finds both components' same-trace logs in Loki, and checks the API → database enqueue → worker parent chain in Tempo. It owns and cleans up its loopback port-forwards. This proves the data path, not every dashboard link or alert condition.
+
+Grafana's two Python sidecars have 192Mi limits after 64Mi caused observed startup OOM kills. Grafana itself has a 512Mi limit and 400MiB Go memory target after its measured working set reached 255Mi. Suggested plugin preinstallation and update checks are disabled to avoid unpinned background downloads; see [Grafana configuration](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#preinstall_disabled). Alertmanager's inherited child routes are explicitly cleared when defining the lab receiver.
+
 ## Request-to-root-cause exercise
 
 1. Send a valid job request with a unique `X-Request-ID`, save the response headers/job ID and wait for completion.
