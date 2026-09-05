@@ -1,0 +1,58 @@
+name: Promote to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence:
+        description: 'Dev smoke/load evidence URL or committed evidence path'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-staging
+  cancel-in-progress: false
+
+jobs:
+  promotion-pr:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install locked yq
+        run: bash scripts/install-ci-tools.sh yq
+      - name: Copy the dev digest without rebuilding
+        run: bash scripts/promote-image.sh
+      - name: Open the approval PR
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/promote-staging
+          base: main
+          add-paths: |
+            deploy/chart/taskflow/values-staging.yaml
+            platform/gitops/taskflow-applicationset.yaml
+          commit-message: 'chore(staging): promote tested dev digest'
+          title: 'chore(staging): promote tested dev digest'
+          body: |
+            Copy the exact current dev image digest and source SHA into staging.
+            Dev verification evidence: ${{ inputs.evidence }}
+            The reviewer must verify the evidence identifies this digest.
+            No image is rebuilt and no cluster credential is used.
+          delete-branch: true
+      - name: Explicitly run checks on the promotion branch
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref automation/promote-staging

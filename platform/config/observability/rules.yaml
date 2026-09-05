@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: taskflow
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: taskflow-recording
+      interval: 15s
+      rules:
+        - record: taskflow:http_requests:rate5m
+          expr: sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[5m]))
+        - record: taskflow:http_errors:ratio5m
+          expr: |
+            (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*",status_class="5xx"}[5m]))
+              or on (namespace) (taskflow:http_requests:rate5m * 0))
+            / clamp_min(taskflow:http_requests:rate5m, 0.001)
+        - record: taskflow:http_errors:ratio30m
+          expr: |
+            (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*",status_class="5xx"}[30m]))
+              or on (namespace) (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[30m])) * 0))
+            / clamp_min(sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[30m])), 0.001)
+        - record: taskflow:http_errors:ratio1h
+          expr: |
+            (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*",status_class="5xx"}[1h]))
+              or on (namespace) (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[1h])) * 0))
+            / clamp_min(sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[1h])), 0.001)
+        - record: taskflow:http_errors:ratio6h
+          expr: |
+            (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*",status_class="5xx"}[6h]))
+              or on (namespace) (sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[6h])) * 0))
+            / clamp_min(sum by (namespace) (rate(taskflow_http_requests_total{route=~"/v1/jobs.*"}[6h])), 0.001)
+        - record: taskflow:http_latency:p95
+          expr: histogram_quantile(0.95, sum by (namespace, le) (rate(taskflow_http_request_duration_seconds_bucket{route=~"/v1/jobs.*"}[5m])))
+    - name: taskflow-alerts
+      rules:
+        - alert: TaskflowFastErrorBudgetBurn
+          expr: (taskflow:http_errors:ratio5m > 14.4 * 0.005) and on (namespace) (taskflow:http_errors:ratio1h > 14.4 * 0.005)
+          for: 2m
+          labels: {severity: critical, service: taskflow}
+          annotations:
+            summary: Taskflow is consuming its 99.5% availability budget quickly
+            runbook_url: https://github.com/skhitrov/k8s-platform-lab/blob/main/docs/runbooks/incidents.md
+        - alert: TaskflowSlowErrorBudgetBurn
+          expr: (taskflow:http_errors:ratio30m > 6 * 0.005) and on (namespace) (taskflow:http_errors:ratio6h > 6 * 0.005)
+          for: 15m
+          labels: {severity: warning, service: taskflow}
+          annotations:
+            summary: Sustained Taskflow errors exceed the availability budget
+        - alert: TaskflowLatencyHigh
+          expr: (taskflow:http_latency:p95 > 0.3) and on (namespace) (taskflow:http_requests:rate5m > 1)
+          for: 5m
+          labels: {severity: warning, service: taskflow}
+          annotations:
+            summary: Taskflow p95 API latency is above 300 ms
+        - alert: TaskflowQueueOld
+          expr: max by (namespace) (taskflow_queue_oldest_age_seconds) > 60
+          for: 5m
+          labels: {severity: warning, service: taskflow}
+          annotations:
+            summary: Queued work has waited more than one minute
+        - alert: TaskflowDatabasePoolSaturated
+          expr: taskflow_db_pool_acquired_connections / taskflow_db_pool_max_connections > 0.9
+          for: 5m
+          labels: {severity: warning, service: taskflow}
+          annotations:
+            summary: More than 90% of a Taskflow database pool is in use
+        - alert: TaskflowBackupStale
+          expr: time() - kube_cronjob_status_last_successful_time{cronjob="taskflow-taskflow-backup"} > 26 * 3600
+          for: 5m
+          labels: {severity: warning, service: taskflow}
+          annotations:
+            summary: No successful scheduled Taskflow backup in 26 hours
+            runbook_url: https://github.com/skhitrov/k8s-platform-lab/blob/main/docs/runbooks/backup-restore.md

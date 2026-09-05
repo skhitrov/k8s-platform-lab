@@ -1,0 +1,27 @@
+image:
+  tag: staging
+  digest: ""
+
+api:
+  replicas: 3
+  autoscaling:
+    minReplicas: 3
+  rollout:
+    enabled: true
+
+worker:
+  replicas: 2
+  autoscaling:
+    minReplicas: 2
+
+ingress:
+  host: staging.taskflow.localhost
+
+serviceMonitor:
+  enabled: true
+
+config:
+  otlpEndpoint: otel-collector.observability.svc.cluster.local:4317
+
+backup:
+  enabled: true

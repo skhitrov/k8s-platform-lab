@@ -1,0 +1,29 @@
+.DS_Store
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+.local/
+.cache/
+bin/
+coverage.out
+coverage.html
+dist/
+*.log
+*.test
+/taskflow
+
+# Generated Kubernetes and Helm output
+rendered/
+charts/
+*.tgz
+
+# Local cluster state and credentials
+.kube/
+kubeconfig*
+*.key
+*.pem
+secrets*.yaml
+!secrets.example.yaml
+backups/

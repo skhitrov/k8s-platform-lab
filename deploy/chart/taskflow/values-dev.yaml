@@ -1,0 +1,21 @@
+image:
+  tag: dev
+  digest: ""
+
+api:
+  replicas: 2
+
+worker:
+  replicas: 1
+
+ingress:
+  host: taskflow.localhost
+
+serviceMonitor:
+  enabled: true
+
+config:
+  otlpEndpoint: otel-collector.observability.svc.cluster.local:4317
+
+backup:
+  enabled: true

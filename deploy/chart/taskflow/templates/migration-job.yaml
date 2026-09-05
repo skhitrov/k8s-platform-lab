@@ -1,0 +1,48 @@
+{{- if .Values.migration.enabled }}
+{{- $migrationID := printf "%s-%s-%s" (include "taskflow.image" .) .Chart.Version .Chart.AppVersion | sha256sum | trunc 8 -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "taskflow.fullname" . }}-migrate-{{ $migrationID }}
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "taskflow.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "taskflow.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: {{ .Values.podSecurity.fsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{ include "taskflow.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["migrate"]
+          securityContext:
+            {{- include "taskflow.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "taskflow.databaseEnv" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+{{- end }}

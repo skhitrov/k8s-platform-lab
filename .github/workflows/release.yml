@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      commit: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Avoid rebuilding for digest-only or documentation merges
+        id: changes
+        run: |
+          if git diff-tree --no-commit-id --name-only -r --root HEAD -- app go.mod go.sum Dockerfile .dockerignore .github/workflows/release.yml | rg -q .; then
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        if: steps.changes.outputs.build == 'true'
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        if: steps.changes.outputs.build == 'true'
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        if: steps.changes.outputs.build == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish exactly the commit that passed CI
+        id: build
+        if: steps.changes.outputs.build == 'true'
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/skhitrov/k8s-platform-lab/taskflow:${{ github.event.workflow_run.head_sha }}
+          build-args: |
+            VERSION=${{ github.event.workflow_run.head_sha }}
+            COMMIT=${{ github.event.workflow_run.head_sha }}
+            BUILD_DATE=${{ github.event.workflow_run.updated_at }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Sign GitHub build provenance
+        if: steps.build.outputs.digest != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/skhitrov/k8s-platform-lab/taskflow
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Verify platforms, SBOM, and provenance from the registry
+        if: steps.build.outputs.digest != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          gh attestation verify "oci://ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --repo skhitrov/k8s-platform-lab
+          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --raw | jq -e '[.manifests[].platform | select(.os == "linux") | .architecture] | (index("amd64") != null and index("arm64") != null)'
+          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .SBOM}}' | jq -e 'type == "object" and length > 0'
+          docker buildx imagetools inspect "ghcr.io/skhitrov/k8s-platform-lab/taskflow@$IMAGE_DIGEST" --format '{{json .Provenance}}' | jq -e 'type == "object" and length > 0'
+
+  dev-pr:
+    needs: publish
+    if: needs.publish.outputs.digest != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install locked yq
+        run: bash scripts/install-ci-tools.sh yq
+      - name: Update dev desired state
+        env:
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          SOURCE_COMMIT: ${{ needs.publish.outputs.commit }}
+        run: bash scripts/update-image.sh dev "$IMAGE_DIGEST" "$SOURCE_COMMIT"
+      - name: Open the dev digest PR
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: automation/dev-image
+          base: main
+          add-paths: deploy/chart/taskflow/values-dev.yaml
+          commit-message: 'chore(dev): deploy ${{ needs.publish.outputs.commit }}'
+          title: 'chore(dev): deploy ${{ needs.publish.outputs.commit }}'
+          body: |
+            Deploy the CI-tested source commit `${{ needs.publish.outputs.commit }}`.
+            Immutable image: `${{ needs.publish.outputs.digest }}`.
+            Registry platforms, SBOM, and signed provenance were checked by Release.
+            Review and merge this PR; Argo CD, not CI, contacts the local cluster.
+          delete-branch: true
+      - name: Explicitly run checks on the automation branch
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref automation/dev-image

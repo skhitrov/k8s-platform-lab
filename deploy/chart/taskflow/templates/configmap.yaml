@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "taskflow.fullname" . }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+data:
+  HTTP_ADDR: {{ printf ":%v" .Values.api.port | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  SHUTDOWN_TIMEOUT: {{ .Values.config.shutdownTimeout | quote }}
+  DATABASE_MAX_CONNS: {{ .Values.config.databaseMaxConns | quote }}
+  DATABASE_MIN_CONNS: {{ .Values.config.databaseMinConns | quote }}
+  FAULT_ERROR_PERCENT: {{ .Values.config.faultErrorPercent | quote }}
+  FAULT_LATENCY_MS: {{ .Values.config.faultLatencyMs | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otlpEndpoint | quote }}
+  OTEL_EXPORTER_OTLP_INSECURE: {{ .Values.config.otlpInsecure | quote }}

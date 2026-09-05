@@ -1,0 +1,2 @@
+# Applied migration bytes are checksum-locked, including the original final blank line.
+app/internal/database/migrations/*.sql whitespace=-blank-at-eof

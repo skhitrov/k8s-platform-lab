@@ -1,0 +1,62 @@
+fullnameOverride: alloy
+controller:
+  type: deployment
+  replicas: 1
+alloy:
+  enableReporting: false
+  resources:
+    requests: {cpu: 50m, memory: 96Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  configMap:
+    content: |
+      logging {
+        level = "info"
+        format = "json"
+      }
+      discovery.kubernetes "taskflow" {
+        role = "pod"
+        namespaces {
+          names = ["taskflow-dev", "taskflow-staging"]
+        }
+      }
+      discovery.relabel "taskflow" {
+        targets = discovery.kubernetes.taskflow.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+          target_label = "component"
+        }
+      }
+      loki.source.kubernetes "taskflow" {
+        targets = discovery.relabel.taskflow.output
+        forward_to = [loki.write.local.receiver]
+      }
+      loki.source.kubernetes_events "lab" {
+        namespaces = ["taskflow-dev", "taskflow-staging", "observability", "argocd", "ingress-nginx"]
+        job_name = "kubernetes/events"
+        forward_to = [loki.write.local.receiver]
+      }
+      loki.write "local" {
+        endpoint {
+          url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }
+rbac:
+  # API log streaming avoids privileged hostPath mounts. Never grant Secret access.
+  namespaces: [taskflow-dev, taskflow-staging, observability, argocd, ingress-nginx]
+  rules:
+    - apiGroups: [""]
+      resources: [pods, pods/log, events]
+      verbs: [get, list, watch]
+  clusterRules: []

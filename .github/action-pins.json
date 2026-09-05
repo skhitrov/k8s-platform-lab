@@ -1,0 +1,38 @@
+{
+  "actions/checkout": {
+    "version": "v7.0.1",
+    "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1"
+  },
+  "actions/setup-go": {
+    "version": "v7.0.0",
+    "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
+  },
+  "actions/upload-artifact": {
+    "version": "v7.0.1",
+    "sha": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+  },
+  "docker/setup-qemu-action": {
+    "version": "v4.3.0",
+    "sha": "1f40c72289eff860ee54a304f1438e3cff362e0a"
+  },
+  "docker/setup-buildx-action": {
+    "version": "v4.3.0",
+    "sha": "37fe631027851001ddb9b187196cc803df7f5f0e"
+  },
+  "docker/login-action": {
+    "version": "v4.6.0",
+    "sha": "dbcb813823bdd20940b903addbd779551569679f"
+  },
+  "docker/build-push-action": {
+    "version": "v7.3.0",
+    "sha": "53b7df96c91f9c12dcc8a07bcb9ccacbed38856a"
+  },
+  "actions/attest-build-provenance": {
+    "version": "v4.2.2",
+    "sha": "4d101475d8b20a2381f78447822ac1eab6504dd8"
+  },
+  "peter-evans/create-pull-request": {
+    "version": "v8.1.1",
+    "sha": "5f6978faf089d4d20b00c7766989d076bb2fc7f1"
+  }
+}

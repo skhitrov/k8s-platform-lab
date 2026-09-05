@@ -1,0 +1,7 @@
+apiVersion: v2
+name: taskflow
+description: A Kubernetes practice workload with an API, worker, and PostgreSQL queue
+type: application
+version: 0.1.0
+appVersion: "dev"
+kubeVersion: ">=1.31.0-0"

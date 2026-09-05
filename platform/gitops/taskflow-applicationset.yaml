@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: taskflow
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  goTemplate: true
+  goTemplateOptions: [missingkey=error]
+  generators:
+    - list:
+        elements:
+          - environment: dev
+          # The first tested promotion adds staging; never deploy an empty digest.
+  template:
+    metadata:
+      name: 'taskflow-{{ .environment }}'
+      labels:
+        app.kubernetes.io/part-of: taskflow
+    spec:
+      project: taskflow
+      source:
+        repoURL: https://github.com/skhitrov/k8s-platform-lab.git
+        targetRevision: main
+        path: deploy/chart/taskflow
+        helm:
+          releaseName: taskflow
+          valueFiles:
+            - 'values-{{ .environment }}.yaml'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'taskflow-{{ .environment }}'
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers: [/spec/replicas]
+        - group: argoproj.io
+          kind: Rollout
+          jsonPointers: [/spec/replicas]
+        - group: ''
+          kind: Service
+          jsonPointers: [/spec/selector/rollouts-pod-template-hash]
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 10
+          backoff: {duration: 10s, factor: 2, maxDuration: 3m}
+  syncPolicy:
+    preserveResourcesOnDeletion: true

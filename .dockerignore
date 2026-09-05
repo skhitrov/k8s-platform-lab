@@ -1,0 +1,13 @@
+.git
+.github
+.local
+.env*
+bin
+dist
+docs
+labs
+platform
+tests
+coverage.out
+coverage.html
+README.md

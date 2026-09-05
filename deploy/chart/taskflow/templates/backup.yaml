@@ -1,0 +1,104 @@
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "taskflow.fullname" . }}-backups
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if .Values.backup.storageClassName }}
+  storageClassName: {{ .Values.backup.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "taskflow.fullname" . }}-backup
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            {{- include "taskflow.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          serviceAccountName: {{ include "taskflow.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: {{ include "taskflow.postgresqlImage" . }}
+              imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  umask 077
+                  backup_name="taskflow-$(date -u +%Y%m%dT%H%M%SZ)-${POD_NAME}.dump"
+                  pg_dump --format=custom --no-owner --no-acl --file="/backups/${backup_name}.partial"
+                  pg_restore --list "/backups/${backup_name}.partial" >/dev/null
+                  mv "/backups/${backup_name}.partial" "/backups/${backup_name}"
+                  find /backups -type f -name 'taskflow-*.dump' -mtime +{{ .Values.backup.retentionDays }} -delete
+                  printf 'BACKUP_FILE=%s\n' "${backup_name}"
+              env:
+                - name: PGHOST
+                  value: {{ include "taskflow.fullname" . }}-postgresql
+                - name: PGUSER
+                  value: {{ .Values.postgresql.username | quote }}
+                - name: PGDATABASE
+                  value: {{ .Values.postgresql.database | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.postgresql.existingSecret }}
+                      key: {{ .Values.postgresql.passwordKey }}
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ include "taskflow.fullname" . }}-backups
+            - name: tmp
+              emptyDir: {}
+{{- end }}

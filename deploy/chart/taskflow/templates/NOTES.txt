@@ -1,0 +1,10 @@
+Taskflow has been rendered for namespace {{ .Release.Namespace }}.
+
+Required precondition:
+  Secret {{ .Values.postgresql.existingSecret }} must contain key {{ .Values.postgresql.passwordKey }}.
+
+Check rollout:
+  kubectl --namespace {{ .Release.Namespace }} get pods,services,ingress,hpa,pdb
+
+Test health:
+  curl --fail http://{{ .Values.ingress.host }}/health/ready

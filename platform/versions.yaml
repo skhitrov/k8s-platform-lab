@@ -1,0 +1,77 @@
+# Updated from upstream release metadata on 2026-09-05.
+# SHA256 values verify downloaded chart archives, not only version strings.
+kubernetesMinor: "1.36"
+apiextensionsSchema:
+  version: "1.36.3"
+  sha256: 1c7dd621bece6661867bcc29471f774a46b36c02567d59815c7c72f6d08aa512
+kind:
+  version: "0.32.0"
+  nodeImage: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
+k3s:
+  version: v1.36.3+k3s1
+calico:
+  version: v3.32.0
+argocd:
+  version: v3.5.2
+  manifestSHA256: 9a87f2b3e14c278f12501eb0ef5c3955b27cf05370ca425381c6a908cf85a5c5
+charts:
+  ingress-nginx:
+    repository: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    version: "4.15.1"
+    archive: https://github.com/kubernetes/ingress-nginx/releases/download/helm-chart-4.15.1/ingress-nginx-4.15.1.tgz
+    sha256: 3eff0bd18151d6e6b1c441463410571443dda1ac78292cb189346628de784f0c
+  metrics-server:
+    repository: https://kubernetes-sigs.github.io/metrics-server
+    chart: metrics-server
+    version: "3.14.0"
+    archive: https://github.com/kubernetes-sigs/metrics-server/releases/download/metrics-server-helm-chart-3.14.0/metrics-server-3.14.0.tgz
+    sha256: c2ca1185c01e6e7f53dd1b7d131f0c9b3fa50e003ed068b784563a1b5a3422a1
+  argo-rollouts:
+    repository: https://argoproj.github.io/argo-helm
+    chart: argo-rollouts
+    version: "2.43.0"
+    archive: https://github.com/argoproj/argo-helm/releases/download/argo-rollouts-2.43.0/argo-rollouts-2.43.0.tgz
+    sha256: 864c39ff9023dc2cc1d6424b128fa366e9a2d649698d822db0bc4c4facd7941d
+  kube-prometheus-stack:
+    repository: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    version: "89.2.2"
+    archive: https://github.com/prometheus-community/helm-charts/releases/download/kube-prometheus-stack-89.2.2/kube-prometheus-stack-89.2.2.tgz
+    sha256: 05483f2ca0b047880e39869927ed7d313a365e7cd030e8fa782a755e44514d8f
+  loki:
+    repository: https://grafana-community.github.io/helm-charts
+    chart: loki
+    version: "18.12.1"
+    archive: https://github.com/grafana-community/helm-charts/releases/download/loki-18.12.1/loki-18.12.1.tgz
+    sha256: 94c28b81733dd5610a42b86bfc114eba8fdd269184175a26e3b4eb467ac1ca06
+  alloy:
+    repository: https://grafana.github.io/helm-charts
+    chart: alloy
+    version: "1.12.1"
+    archive: https://github.com/grafana/helm-charts/releases/download/alloy-1.12.1/alloy-1.12.1.tgz
+    sha256: cdd1ec39f99c3c506d5b521156d72236ea143c089f50da6b64398f831734829c
+  tempo:
+    repository: https://grafana.github.io/helm-charts
+    chart: tempo
+    version: "1.24.4"
+    archive: https://github.com/grafana/helm-charts/releases/download/tempo-1.24.4/tempo-1.24.4.tgz
+    sha256: f1f6e318d5bca3b5097cb676077796cdf8135beb2c1f71c4d14614ccf9b0081b
+  opentelemetry-collector:
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    chart: opentelemetry-collector
+    version: "0.172.1"
+    archive: https://github.com/open-telemetry/opentelemetry-helm-charts/releases/download/opentelemetry-collector-0.172.1/opentelemetry-collector-0.172.1.tgz
+    sha256: 479d6bae365a7940331defe22c5085d33c2891f8124b30b0841c95815e49bda7
+  sealed-secrets:
+    repository: https://bitnami.github.io/sealed-secrets
+    chart: sealed-secrets
+    version: "2.19.3"
+    archive: https://github.com/bitnami/sealed-secrets/releases/download/helm-v2.19.3/sealed-secrets-2.19.3.tgz
+    sha256: 2dda5b75e0310574358b1b34043eb04e01ba54188f6b1d749a8f54f499eb8ead
+  cert-manager:
+    repository: https://charts.jetstack.io
+    chart: cert-manager
+    version: "v1.21.1"
+    archive: https://charts.jetstack.io/charts/cert-manager-v1.21.1.tgz
+    sha256: c27101f3f3e2349fb4a9e704316105bf7b52ad73b8c8257d3498ef7f2f6a4adc

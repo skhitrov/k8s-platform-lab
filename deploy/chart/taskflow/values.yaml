@@ -1,0 +1,170 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/skhitrov/k8s-platform-lab/taskflow
+  tag: dev
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  automount: false
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+api:
+  replicas: 2
+  port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 60
+  disruptionBudget:
+    enabled: true
+    minAvailable: 1
+  rollout:
+    enabled: false
+    steps:
+      - setWeight: 10
+      - pause:
+          duration: 60s
+      - analysis:
+          templates:
+            - templateName: taskflow-success-rate
+          args:
+            - name: candidate-hash
+              valueFrom:
+                podTemplateHashValue: Latest
+      - setWeight: 25
+      - pause:
+          duration: 60s
+      - analysis:
+          templates:
+            - templateName: taskflow-success-rate
+          args:
+            - name: candidate-hash
+              valueFrom:
+                podTemplateHashValue: Latest
+      - setWeight: 50
+      - pause:
+          duration: 120s
+      - analysis:
+          templates:
+            - templateName: taskflow-success-rate
+          args:
+            - name: candidate-hash
+              valueFrom:
+                podTemplateHashValue: Latest
+      - setWeight: 100
+
+worker:
+  replicas: 2
+  pollInterval: 250ms
+  leaseDuration: 30s
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 750m
+      memory: 128Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 65
+  disruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+config:
+  logLevel: info
+  shutdownTimeout: 15s
+  databaseMaxConns: 5
+  databaseMinConns: 1
+  faultErrorPercent: 0
+  faultLatencyMs: 0
+  otlpEndpoint: ""
+  otlpInsecure: true
+
+postgresql:
+  image:
+    repository: postgres
+    tag: 17-alpine
+    digest: sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    pullPolicy: IfNotPresent
+  database: taskflow
+  username: taskflow
+  existingSecret: taskflow-postgres
+  passwordKey: password
+  storage: 2Gi
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskflow.localhost
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: taskflow-tls
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    kubernetes.io/metadata.name: ingress-nginx
+  monitoringNamespaceSelector:
+    kubernetes.io/metadata.name: observability
+
+podSecurity:
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+serviceMonitor:
+  enabled: false
+  interval: 15s
+
+prometheus:
+  address: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+
+migration:
+  enabled: true
+
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  retentionDays: 7
+  storage: 2Gi
+  storageClassName: ""
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
+sealedSecret:
+  # Populate only with kubeseal output bound to this namespace and Secret name.
+  encryptedPassword: ""

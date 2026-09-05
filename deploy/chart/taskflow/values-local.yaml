@@ -1,0 +1,19 @@
+# The first weeks run without the GitOps/observability add-ons.
+image:
+  repository: taskflow
+  tag: dev
+  pullPolicy: Never
+api:
+  replicas: 2
+  autoscaling:
+    enabled: false
+worker:
+  replicas: 1
+  autoscaling:
+    enabled: false
+  disruptionBudget:
+    enabled: false
+serviceMonitor:
+  enabled: false
+backup:
+  enabled: true

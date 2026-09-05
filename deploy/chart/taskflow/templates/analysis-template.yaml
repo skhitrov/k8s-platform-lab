@@ -1,0 +1,47 @@
+{{- if .Values.api.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: taskflow-success-rate
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: candidate-hash
+  metrics:
+    # Missing candidate traffic fails the gate. Health probes are excluded.
+    - name: sample-count
+      interval: 20s
+      count: 3
+      successCondition: len(result) == 1 && result[0] >= 20
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address }}
+          query: |
+            sum(increase(taskflow_http_requests_total{namespace="{{ .Release.Namespace }}",rollout_hash="{{ "{{args.candidate-hash}}" }}",route="/v1/jobs",method="POST"}[2m])) or vector(0)
+    - name: success-rate
+      interval: 20s
+      count: 3
+      successCondition: len(result) == 1 && result[0] >= 0.995
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address }}
+          query: |
+            (sum(rate(taskflow_http_requests_total{namespace="{{ .Release.Namespace }}",rollout_hash="{{ "{{args.candidate-hash}}" }}",route="/v1/jobs",method="POST",status_class!="5xx"}[2m])) or vector(0))
+            /
+            clamp_min((sum(rate(taskflow_http_requests_total{namespace="{{ .Release.Namespace }}",rollout_hash="{{ "{{args.candidate-hash}}" }}",route="/v1/jobs",method="POST"}[2m])) or vector(0)), 0.001)
+    - name: p95-latency
+      interval: 20s
+      count: 3
+      successCondition: len(result) == 1 && result[0] < 0.3
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address }}
+          query: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(taskflow_http_request_duration_seconds_bucket{namespace="{{ .Release.Namespace }}",rollout_hash="{{ "{{args.candidate-hash}}" }}",route="/v1/jobs",method="POST"}[2m]))
+            )
+{{- end }}

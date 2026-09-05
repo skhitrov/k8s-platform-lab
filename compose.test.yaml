@@ -1,0 +1,17 @@
+name: taskflow-integration
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_DB: taskflow_test
+      POSTGRES_USER: taskflow
+      POSTGRES_PASSWORD: integration-only
+    ports:
+      - "127.0.0.1:15432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U taskflow -d taskflow_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

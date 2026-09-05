@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: taskflow-budget
+  namespace: taskflow-dev
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.cpu: "12"
+    limits.memory: 6Gi
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+    pods: "24"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: taskflow-budget
+  namespace: taskflow-staging
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.cpu: "12"
+    limits.memory: 6Gi
+    persistentvolumeclaims: "4"
+    requests.storage: 10Gi
+    pods: "24"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: taskflow-defaults
+  namespace: taskflow-dev
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 25m, memory: 32Mi}
+      default: {cpu: 250m, memory: 128Mi}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: taskflow-defaults
+  namespace: taskflow-staging
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 25m, memory: 32Mi}
+      default: {cpu: 250m, memory: 128Mi}

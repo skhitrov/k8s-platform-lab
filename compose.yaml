@@ -1,0 +1,75 @@
+name: taskflow
+
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_DB: taskflow
+      POSTGRES_USER: taskflow
+      POSTGRES_PASSWORD: taskflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskflow -d taskflow"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - taskflow-postgres:/var/lib/postgresql/data
+    mem_limit: 512m
+    cpus: 1.0
+
+  migrate:
+    build:
+      context: .
+    command: ["migrate"]
+    environment: &taskflow-environment
+      DATABASE_URL: postgres://taskflow:taskflow@postgres:5432/taskflow?sslmode=disable
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.5
+
+  api:
+    mem_limit: 128m
+    cpus: 0.5
+    build:
+      context: .
+    command: ["api"]
+    environment:
+      <<: *taskflow-environment
+      HTTP_ADDR: :8080
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+
+  worker:
+    mem_limit: 128m
+    cpus: 0.75
+    build:
+      context: .
+    command: ["worker"]
+    environment:
+      <<: *taskflow-environment
+      WORKER_POLL_INTERVAL: 250ms
+      WORKER_LEASE_DURATION: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  taskflow-postgres:

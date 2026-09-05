@@ -1,0 +1,10 @@
+args:
+  # Kind kubelet certificates are self-signed; this exception is local-lab only.
+  - --kubelet-insecure-tls
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
