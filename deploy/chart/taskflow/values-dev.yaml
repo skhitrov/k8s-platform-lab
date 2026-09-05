@@ -1,21 +1,15 @@
 image:
-  tag: dev
-  digest: ""
-
+  tag: 178876cc3812464810313880a1d2ffd3f0e03b7e
+  digest: "sha256:f13a105f7ae4cfcda977df0483c5d3fe41864d72b00ca8c876da756f28f2ecc2"
 api:
   replicas: 2
-
 worker:
   replicas: 1
-
 ingress:
   host: taskflow.localhost
-
 serviceMonitor:
   enabled: true
-
 config:
   otlpEndpoint: otel-collector.observability.svc.cluster.local:4317
-
 backup:
   enabled: true
