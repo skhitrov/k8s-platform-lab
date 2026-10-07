@@ -18,6 +18,11 @@ dist/
 rendered/
 charts/
 *.tgz
+# Keep the reviewed, pinned third-party chart source in Git.
+!platform/addons/charts/
+!platform/addons/charts/kube-prometheus-stack/
+!platform/addons/charts/kube-prometheus-stack/**/
+!platform/addons/charts/kube-prometheus-stack/**
 
 # Local cluster state and credentials
 .kube/
